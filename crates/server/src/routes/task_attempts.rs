@@ -56,6 +56,9 @@ use crate::{
     DeploymentImpl, error::ApiError, middleware::load_workspace_middleware,
     routes::task_attempts::gh_cli_setup::GhCliSetupError,
 };
+use local_deployment::devctl2::{
+    DevCtl2Config, is_devctl2_available, run_devctl2_setup, sanitize_branch_for_subdomain,
+};
 
 #[derive(Debug, Deserialize, Serialize, TS)]
 pub struct RebaseTaskAttemptRequest {
@@ -1180,7 +1183,7 @@ pub async fn start_dev_server(
         }
     };
 
-    deployment
+    let execution_process = deployment
         .container()
         .start_execution(
             &workspace,
@@ -1189,6 +1192,35 @@ pub async fn start_dev_server(
             &ExecutionProcessRunReason::DevServer,
         )
         .await?;
+
+    // Setup devctl2 routing if configured
+    if let Some(container_ref) = &workspace.container_ref {
+        let workspace_path = PathBuf::from(container_ref);
+
+        // Get the first repo for this workspace to find .devctl2rc.json
+        let repos = WorkspaceRepo::find_repos_for_workspace(pool, workspace.id).await?;
+        if let Some(repo) = repos.first() {
+            let repo_worktree_path = workspace_path.join(&repo.name);
+
+            // Check for devctl2 config
+            if let Some(config) = DevCtl2Config::load(&repo_worktree_path).await {
+                if config.features.caddy && is_devctl2_available() {
+                    let subdomain = sanitize_branch_for_subdomain(&workspace.branch);
+
+                    if let Err(e) = run_devctl2_setup(&repo_worktree_path, &subdomain).await {
+                        tracing::warn!("Failed to run devctl2 setup: {}", e);
+                    } else {
+                        let url = format!("https://{}.{}", subdomain, config.base_domain);
+                        tracing::info!("Registered devctl2 route: {}", url);
+                        deployment
+                            .container()
+                            .set_devctl2_url(execution_process.id, url)
+                            .await;
+                    }
+                }
+            }
+        }
+    }
 
     deployment
         .track_if_analytics_allowed(

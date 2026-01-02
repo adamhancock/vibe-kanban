@@ -238,6 +238,16 @@ export type ImageResponse = { id: string, file_path: string, original_name: stri
 
 export type ImageMetadata = { exists: boolean, file_name: string | null, path: string | null, size_bytes: bigint | null, format: string | null, proxy_url: string | null, };
 
+export type NotionImportPreviewItem = { notion_id: string, task_id: string, title: string, description: string | null, status: TaskStatus, url: string, will_import: boolean, skip_reason: string | null, };
+
+export type NotionImportPreviewResponse = { tasks: Array<NotionImportPreviewItem>, total_count: number, importable_count: number, duplicate_count: number, };
+
+export type NotionImportRequest = { notion_ids: Array<string>, };
+
+export type NotionImportResponse = { imported_count: number, skipped_count: number, errors: Array<NotionImportError>, };
+
+export type NotionImportError = { notion_id: string, title: string, error: string, };
+
 export type CreateTaskAttemptBody = { task_id: string, executor_profile_id: ExecutorProfileId, repos: Array<WorkspaceRepoInput>, };
 
 export type WorkspaceRepoInput = { repo_id: string, target_branch: string, };

@@ -1190,4 +1190,22 @@ pub trait ContainerService {
         tracing::debug!("Started next action: {:?}", next_action);
         Ok(())
     }
+
+    /// Store a devctl2 subdomain URL for an execution process.
+    /// Default implementation does nothing (for non-local deployments).
+    async fn set_devctl2_url(&self, _exec_id: Uuid, _url: String) {
+        // No-op by default
+    }
+
+    /// Get the devctl2 subdomain URL for an execution process.
+    /// Default implementation returns None (for non-local deployments).
+    async fn get_devctl2_url(&self, _exec_id: &Uuid) -> Option<String> {
+        None
+    }
+
+    /// Remove the devctl2 subdomain URL for an execution process.
+    /// Default implementation returns None (for non-local deployments).
+    async fn remove_devctl2_url(&self, _exec_id: &Uuid) -> Option<String> {
+        None
+    }
 }

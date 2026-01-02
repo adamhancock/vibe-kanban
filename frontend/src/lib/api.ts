@@ -89,6 +89,9 @@ import {
   AbortConflictsRequest,
   Session,
   Workspace,
+  NotionImportPreviewResponse,
+  NotionImportRequest,
+  NotionImportResponse,
 } from 'shared/types';
 import type { WorkspaceWithSession } from '@/types/attempt';
 import { createWorkspaceWithSession } from '@/types/attempt';
@@ -780,6 +783,13 @@ export const executionProcessesApi = {
     );
     return handleApiResponse<void>(response);
   },
+
+  getDevctl2Url: async (processId: string): Promise<string | null> => {
+    const response = await makeRequest(
+      `/api/execution-processes/${processId}/devctl2-url`
+    );
+    return handleApiResponse<string | null>(response);
+  },
 };
 
 // File System APIs
@@ -1288,5 +1298,36 @@ export const queueApi = {
   getStatus: async (sessionId: string): Promise<QueueStatus> => {
     const response = await makeRequest(`/api/sessions/${sessionId}/queue`);
     return handleApiResponse<QueueStatus>(response);
+  },
+};
+
+// Notion Import API for importing tasks from workstream-daemon Redis
+export const notionImportApi = {
+  /**
+   * Get a preview of Notion tasks available for import
+   */
+  preview: async (projectId: string): Promise<NotionImportPreviewResponse> => {
+    const response = await makeRequest(
+      `/api/projects/${projectId}/import/notion/preview`
+    );
+    return handleApiResponse<NotionImportPreviewResponse>(response);
+  },
+
+  /**
+   * Import selected Notion tasks into the project
+   */
+  import: async (
+    projectId: string,
+    notionIds: string[]
+  ): Promise<NotionImportResponse> => {
+    const request: NotionImportRequest = { notion_ids: notionIds };
+    const response = await makeRequest(
+      `/api/projects/${projectId}/import/notion`,
+      {
+        method: 'POST',
+        body: JSON.stringify(request),
+      }
+    );
+    return handleApiResponse<NotionImportResponse>(response);
   },
 };

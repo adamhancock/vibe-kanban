@@ -34,6 +34,10 @@ use crate::container::LocalContainerService;
 mod command;
 pub mod container;
 mod copy;
+pub mod devctl2;
+pub mod redis_client;
+
+pub use redis_client::{NotionTask, RedisClient, RedisClientError};
 
 #[derive(Clone)]
 pub struct LocalDeployment {
@@ -56,6 +60,7 @@ pub struct LocalDeployment {
     remote_client: Result<RemoteClient, RemoteClientNotConfigured>,
     auth_context: AuthContext,
     oauth_handoffs: Arc<RwLock<HashMap<Uuid, PendingHandoff>>>,
+    redis_client: RedisClient,
 }
 
 #[derive(Debug, Clone)]
@@ -189,6 +194,8 @@ impl Deployment for LocalDeployment {
 
         let file_search_cache = Arc::new(FileSearchCache::new());
 
+        let redis_client = RedisClient::new();
+
         let deployment = Self {
             config,
             user_id,
@@ -209,6 +216,7 @@ impl Deployment for LocalDeployment {
             remote_client,
             auth_context,
             oauth_handoffs,
+            redis_client,
         };
 
         Ok(deployment)
@@ -339,5 +347,9 @@ impl LocalDeployment {
 
     pub fn share_config(&self) -> Option<&ShareConfig> {
         self.share_config.as_ref()
+    }
+
+    pub fn redis_client(&self) -> &RedisClient {
+        &self.redis_client
     }
 }

@@ -178,6 +178,19 @@ pub async fn stop_execution_process(
     Ok(ResponseJson(ApiResponse::success(())))
 }
 
+/// Get the devctl2 subdomain URL for an execution process, if available
+pub async fn get_devctl2_url(
+    Extension(execution_process): Extension<ExecutionProcess>,
+    State(deployment): State<DeploymentImpl>,
+) -> Result<ResponseJson<ApiResponse<Option<String>>>, ApiError> {
+    let url = deployment
+        .container()
+        .get_devctl2_url(&execution_process.id)
+        .await;
+
+    Ok(ResponseJson(ApiResponse::success(url)))
+}
+
 pub async fn stream_execution_processes_ws(
     ws: WebSocketUpgrade,
     State(deployment): State<DeploymentImpl>,
@@ -247,6 +260,7 @@ pub fn router(deployment: &DeploymentImpl) -> Router<DeploymentImpl> {
     let workspace_id_router = Router::new()
         .route("/", get(get_execution_process_by_id))
         .route("/stop", post(stop_execution_process))
+        .route("/devctl2-url", get(get_devctl2_url))
         .route("/repo-states", get(get_execution_process_repo_states))
         .route("/raw-logs/ws", get(stream_raw_logs_ws))
         .route("/normalized-logs/ws", get(stream_normalized_logs_ws))

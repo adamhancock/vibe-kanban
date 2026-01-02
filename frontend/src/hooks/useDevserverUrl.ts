@@ -60,12 +60,28 @@ export const detectDevserverUrl = (line: string): DevserverUrlInfo | null => {
 };
 
 export const useDevserverUrlFromLogs = (
-  logs: Array<{ content: string }> | undefined
+  logs: Array<{ content: string }> | undefined,
+  devctl2Url?: string | null
 ): DevserverUrlInfo | undefined => {
   const [urlInfo, setUrlInfo] = useState<DevserverUrlInfo | undefined>();
   const lastIndexRef = useRef(0);
 
   useEffect(() => {
+    // If we have a devctl2 URL, use it immediately
+    if (devctl2Url) {
+      try {
+        const parsed = new URL(devctl2Url);
+        setUrlInfo({
+          url: devctl2Url,
+          port: parsed.port ? Number(parsed.port) : undefined,
+          scheme: parsed.protocol === 'https:' ? 'https' : 'http',
+        });
+        return;
+      } catch {
+        // Invalid URL, fall through to log detection
+      }
+    }
+
     if (!logs) {
       setUrlInfo(undefined);
       lastIndexRef.current = 0;
@@ -98,7 +114,7 @@ export const useDevserverUrlFromLogs = (
     }
 
     lastIndexRef.current = logs.length;
-  }, [logs, urlInfo]);
+  }, [logs, urlInfo, devctl2Url]);
 
   return urlInfo;
 };

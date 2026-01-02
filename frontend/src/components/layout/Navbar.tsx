@@ -19,6 +19,7 @@ import {
   Plus,
   LogOut,
   LogIn,
+  FileDown,
 } from 'lucide-react';
 import { Logo } from '@/components/Logo';
 import { SearchBar } from '@/components/SearchBar';
@@ -38,6 +39,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { OAuthDialog } from '@/components/dialogs/global/OAuthDialog';
+import { NotionImportDialog } from '@/components/dialogs/tasks/NotionImportDialog';
 import { useUserSystem } from '@/components/ConfigProvider';
 import { oauthApi } from '@/lib/api';
 
@@ -112,6 +114,12 @@ export function Navbar() {
   const handleCreateTask = () => {
     if (projectId) {
       openTaskForm({ mode: 'create', projectId });
+    }
+  };
+
+  const handleImportNotionTasks = () => {
+    if (projectId) {
+      NotionImportDialog.show({ projectId });
     }
   };
 
@@ -228,6 +236,24 @@ export function Navbar() {
                   >
                     <Plus className="h-4 w-4" />
                   </Button>
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-9 w-9"
+                          onClick={handleImportNotionTasks}
+                          aria-label="Import from Notion"
+                        >
+                          <FileDown className="h-4 w-4" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent side="bottom">
+                        Import from Notion
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
                 </div>
                 <NavDivider />
               </>

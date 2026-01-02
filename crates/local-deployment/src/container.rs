@@ -78,6 +78,8 @@ pub struct LocalContainerService {
     queued_message_service: QueuedMessageService,
     publisher: Result<SharePublisher, RemoteClientNotConfigured>,
     notification_service: NotificationService,
+    /// Stores devctl2 subdomain URLs for execution processes (exec_id -> URL)
+    devctl2_urls: Arc<RwLock<HashMap<Uuid, String>>>,
 }
 
 impl LocalContainerService {
@@ -96,6 +98,7 @@ impl LocalContainerService {
         let child_store = Arc::new(RwLock::new(HashMap::new()));
         let interrupt_senders = Arc::new(RwLock::new(HashMap::new()));
         let notification_service = NotificationService::new(config.clone());
+        let devctl2_urls = Arc::new(RwLock::new(HashMap::new()));
 
         let container = LocalContainerService {
             db,
@@ -110,6 +113,7 @@ impl LocalContainerService {
             queued_message_service,
             publisher,
             notification_service,
+            devctl2_urls,
         };
 
         container.spawn_workspace_cleanup().await;
@@ -1215,6 +1219,33 @@ impl ContainerService for LocalContainerService {
             execution_process.id
         );
 
+        // Cleanup devctl2 route if this was a dev server
+        if matches!(
+            execution_process.run_reason,
+            ExecutionProcessRunReason::DevServer
+        ) {
+            if let Some(url) = self.remove_devctl2_url(&execution_process.id).await {
+                // Extract subdomain from URL to pass to devctl2 remove
+                if let Some(subdomain) = crate::devctl2::extract_subdomain_from_url(&url) {
+                    if let Ok(ctx) =
+                        ExecutionProcess::load_context(&self.db.pool, execution_process.id).await
+                    {
+                        let workspace_dir = self.workspace_to_current_dir(&ctx.workspace);
+                        if let Some(repo) = ctx.repos.first() {
+                            let repo_worktree = workspace_dir.join(&repo.name);
+                            if let Err(e) =
+                                crate::devctl2::run_devctl2_remove(&repo_worktree, &subdomain).await
+                            {
+                                tracing::warn!("Failed to remove devctl2 route: {}", e);
+                            } else {
+                                tracing::info!("Removed devctl2 route: {}", url);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         // Record after-head commit OID (best-effort)
         self.update_after_head_commits(execution_process.id).await;
 
@@ -1356,6 +1387,18 @@ impl ContainerService for LocalContainerService {
         }
 
         Ok(())
+    }
+
+    async fn set_devctl2_url(&self, exec_id: Uuid, url: String) {
+        self.devctl2_urls.write().await.insert(exec_id, url);
+    }
+
+    async fn get_devctl2_url(&self, exec_id: &Uuid) -> Option<String> {
+        self.devctl2_urls.read().await.get(exec_id).cloned()
+    }
+
+    async fn remove_devctl2_url(&self, exec_id: &Uuid) -> Option<String> {
+        self.devctl2_urls.write().await.remove(exec_id)
     }
 }
 fn success_exit_status() -> std::process::ExitStatus {

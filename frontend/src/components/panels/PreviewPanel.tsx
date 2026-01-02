@@ -7,6 +7,7 @@ import { useDevserverPreview } from '@/hooks/useDevserverPreview';
 import { useDevServer } from '@/hooks/useDevServer';
 import { useLogStream } from '@/hooks/useLogStream';
 import { useDevserverUrlFromLogs } from '@/hooks/useDevserverUrl';
+import { useDevctl2Url } from '@/hooks/useDevctl2Url';
 import { ClickToComponentListener } from '@/utils/previewBridge';
 import { useClickedElements } from '@/contexts/ClickedElementsProvider';
 import { Alert } from '@/components/ui/alert';
@@ -43,7 +44,8 @@ export function PreviewPanel() {
   } = useDevServer(attemptId);
 
   const logStream = useLogStream(latestDevServerProcess?.id ?? '');
-  const lastKnownUrl = useDevserverUrlFromLogs(logStream.logs);
+  const { data: devctl2Url } = useDevctl2Url(latestDevServerProcess?.id);
+  const lastKnownUrl = useDevserverUrlFromLogs(logStream.logs, devctl2Url);
 
   const previewState = useDevserverPreview(attemptId, {
     projectHasDevScript,
