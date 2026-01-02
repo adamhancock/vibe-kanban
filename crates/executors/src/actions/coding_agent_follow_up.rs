@@ -6,7 +6,7 @@ use ts_rs::TS;
 
 use crate::{
     actions::Executable,
-    approvals::ExecutorApprovalService,
+    approvals::{ExecutorApprovalService, ExecutorQuestionService},
     env::ExecutionEnv,
     executors::{BaseCodingAgent, ExecutorError, SpawnedChild, StandardCodingAgentExecutor},
     profile::{ExecutorConfigs, ExecutorProfileId},
@@ -43,6 +43,7 @@ impl Executable for CodingAgentFollowUpRequest {
         &self,
         current_dir: &Path,
         approvals: Arc<dyn ExecutorApprovalService>,
+        questions: Option<Arc<dyn ExecutorQuestionService>>,
         env: &ExecutionEnv,
     ) -> Result<SpawnedChild, ExecutorError> {
         let effective_dir = match &self.working_dir {
@@ -58,6 +59,9 @@ impl Executable for CodingAgentFollowUpRequest {
             ))?;
 
         agent.use_approvals(approvals.clone());
+        if let Some(questions) = questions {
+            agent.use_questions(questions);
+        }
 
         agent
             .spawn_follow_up(&effective_dir, &self.prompt, &self.session_id, env)

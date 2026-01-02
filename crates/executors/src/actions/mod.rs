@@ -10,7 +10,7 @@ use crate::{
         coding_agent_follow_up::CodingAgentFollowUpRequest,
         coding_agent_initial::CodingAgentInitialRequest, script::ScriptRequest,
     },
-    approvals::ExecutorApprovalService,
+    approvals::{ExecutorApprovalService, ExecutorQuestionService},
     env::ExecutionEnv,
     executors::{BaseCodingAgent, ExecutorError, SpawnedChild},
 };
@@ -72,6 +72,7 @@ pub trait Executable {
         &self,
         current_dir: &Path,
         approvals: Arc<dyn ExecutorApprovalService>,
+        questions: Option<Arc<dyn ExecutorQuestionService>>,
         env: &ExecutionEnv,
     ) -> Result<SpawnedChild, ExecutorError>;
 }
@@ -82,8 +83,9 @@ impl Executable for ExecutorAction {
         &self,
         current_dir: &Path,
         approvals: Arc<dyn ExecutorApprovalService>,
+        questions: Option<Arc<dyn ExecutorQuestionService>>,
         env: &ExecutionEnv,
     ) -> Result<SpawnedChild, ExecutorError> {
-        self.typ.spawn(current_dir, approvals, env).await
+        self.typ.spawn(current_dir, approvals, questions, env).await
     }
 }

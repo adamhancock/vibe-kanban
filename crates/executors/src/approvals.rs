@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use thiserror::Error;
 use workspace_utils::approvals::ApprovalStatus;
+use workspace_utils::user_questions::{UserQuestion, UserQuestionResponse};
 
 /// Errors emitted by executor approval services.
 #[derive(Debug, Error)]
@@ -53,4 +54,34 @@ impl ExecutorApprovalService for NoopExecutorApprovalService {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct ToolCallMetadata {
     pub tool_call_id: String,
+}
+
+/// Errors emitted by executor question services.
+#[derive(Debug, Error)]
+pub enum ExecutorQuestionError {
+    #[error("executor question session not registered")]
+    SessionNotRegistered,
+    #[error("executor question request failed: {0}")]
+    RequestFailed(String),
+    #[error("executor question service unavailable")]
+    ServiceUnavailable,
+    #[error("question timed out")]
+    TimedOut,
+}
+
+impl ExecutorQuestionError {
+    pub fn request_failed<E: fmt::Display>(err: E) -> Self {
+        Self::RequestFailed(err.to_string())
+    }
+}
+
+/// Abstraction for executor question backends.
+#[async_trait]
+pub trait ExecutorQuestionService: Send + Sync {
+    /// Requests user to answer questions and waits for the response.
+    async fn request_user_question(
+        &self,
+        tool_call_id: &str,
+        questions: Vec<UserQuestion>,
+    ) -> Result<UserQuestionResponse, ExecutorQuestionError>;
 }

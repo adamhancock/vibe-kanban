@@ -9,7 +9,7 @@ use workspace_utils::shell::get_shell_command;
 
 use crate::{
     actions::Executable,
-    approvals::ExecutorApprovalService,
+    approvals::{ExecutorApprovalService, ExecutorQuestionService},
     env::ExecutionEnv,
     executors::{ExecutorError, SpawnedChild},
 };
@@ -44,6 +44,7 @@ impl Executable for ScriptRequest {
         &self,
         current_dir: &Path,
         _approvals: Arc<dyn ExecutorApprovalService>,
+        _questions: Option<Arc<dyn ExecutorQuestionService>>,
         env: &ExecutionEnv,
     ) -> Result<SpawnedChild, ExecutorError> {
         // Use working_dir if specified, otherwise use current_dir

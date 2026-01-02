@@ -40,6 +40,7 @@ import {
   ImageResponse,
   GitOperationError,
   ApprovalResponse,
+  UserQuestionResponse,
   RebaseTaskAttemptRequest,
   ChangeTargetBranchRequest,
   ChangeTargetBranchResponse,
@@ -1068,6 +1069,24 @@ export const approvalsApi = {
     });
 
     return handleApiResponse<ApprovalStatus>(res);
+  },
+};
+
+// User Questions API
+export const userQuestionsApi = {
+  respond: async (
+    questionId: string,
+    payload: UserQuestionResponse,
+    signal?: AbortSignal
+  ): Promise<UserQuestionResponse> => {
+    const res = await makeRequest(`/api/questions/${questionId}/respond`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+      signal,
+    });
+
+    return handleApiResponse<UserQuestionResponse>(res);
   },
 };
 

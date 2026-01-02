@@ -2,6 +2,7 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 use workspace_utils::approvals::ApprovalStatus;
+use workspace_utils::user_questions::UserQuestion;
 
 pub mod plain_text_processor;
 pub mod stderr_processor;
@@ -144,6 +145,12 @@ pub enum ToolStatus {
         requested_at: DateTime<Utc>,
         timeout_at: DateTime<Utc>,
     },
+    PendingQuestion {
+        question_id: String,
+        requested_at: DateTime<Utc>,
+        timeout_at: DateTime<Utc>,
+        questions: Vec<UserQuestion>,
+    },
     TimedOut,
 }
 
@@ -209,6 +216,9 @@ pub enum ActionType {
     TodoManagement {
         todos: Vec<TodoItem>,
         operation: String,
+    },
+    UserQuestion {
+        questions: Vec<UserQuestion>,
     },
     Other {
         description: String,

@@ -14,7 +14,7 @@ use tokio::process::Command;
 use ts_rs::TS;
 use workspace_utils::{
     approvals::ApprovalStatus, diff::create_unified_diff, log_msg::LogMsg, msg_store::MsgStore,
-    path::make_path_relative,
+    path::make_path_relative, user_questions::UserQuestion,
 };
 
 use self::{
@@ -23,7 +23,7 @@ use self::{
     types::PermissionMode,
 };
 use crate::{
-    approvals::ExecutorApprovalService,
+    approvals::{ExecutorApprovalService, ExecutorQuestionService},
     command::{CmdOverrides, CommandBuilder, CommandParts, apply_overrides},
     env::ExecutionEnv,
     executors::{
@@ -73,6 +73,11 @@ pub struct ClaudeCode {
     #[ts(skip)]
     #[derivative(Debug = "ignore", PartialEq = "ignore")]
     approvals_service: Option<Arc<dyn ExecutorApprovalService>>,
+
+    #[serde(skip)]
+    #[ts(skip)]
+    #[derivative(Debug = "ignore", PartialEq = "ignore")]
+    questions_service: Option<Arc<dyn ExecutorQuestionService>>,
 }
 
 impl ClaudeCode {
@@ -112,7 +117,6 @@ impl ClaudeCode {
             "--output-format=stream-json",
             "--input-format=stream-json",
             "--include-partial-messages",
-            "--disallowedTools=AskUserQuestion",
         ]);
 
         apply_overrides(builder, &self.cmd)
@@ -161,6 +165,10 @@ impl ClaudeCode {
 impl StandardCodingAgentExecutor for ClaudeCode {
     fn use_approvals(&mut self, approvals: Arc<dyn ExecutorApprovalService>) {
         self.approvals_service = Some(approvals);
+    }
+
+    fn use_questions(&mut self, questions: Arc<dyn ExecutorQuestionService>) {
+        self.questions_service = Some(questions);
     }
 
     async fn spawn(
@@ -279,9 +287,10 @@ impl ClaudeCode {
         // Spawn task to handle the SDK client with control protocol
         let prompt_clone = combined_prompt.clone();
         let approvals_clone = self.approvals_service.clone();
+        let questions_clone = self.questions_service.clone();
         tokio::spawn(async move {
             let log_writer = LogWriter::new(new_stdout);
-            let client = ClaudeAgentClient::new(log_writer.clone(), approvals_clone);
+            let client = ClaudeAgentClient::new(log_writer.clone(), approvals_clone, questions_clone);
             let protocol_peer =
                 ProtocolPeer::spawn(child_stdin, child_stdout, client.clone(), interrupt_rx);
 
@@ -705,6 +714,9 @@ impl ClaudeLogProcessor {
             },
             ClaudeToolData::UndoEdit { .. } => ActionType::Other {
                 description: "Undo edit".to_string(),
+            },
+            ClaudeToolData::AskUserQuestion { questions } => ActionType::UserQuestion {
+                questions: questions.clone(),
             },
             ClaudeToolData::Unknown { .. } => {
                 // Surface MCP tools as generic Tool with args
@@ -1280,6 +1292,13 @@ impl ClaudeLogProcessor {
                 }
                 _ => tool_data.get_name().to_string(),
             },
+            ActionType::UserQuestion { questions } => {
+                if questions.len() == 1 {
+                    questions[0].question.clone()
+                } else {
+                    format!("{} questions", questions.len())
+                }
+            }
         }
     }
 }
@@ -1741,6 +1760,10 @@ pub enum ClaudeToolData {
     },
     #[serde(rename = "TodoRead", alias = "todo_read")]
     TodoRead {},
+    #[serde(rename = "AskUserQuestion", alias = "ask_user_question")]
+    AskUserQuestion {
+        questions: Vec<UserQuestion>,
+    },
     #[serde(untagged)]
     Unknown {
         #[serde(flatten)]
@@ -1817,6 +1840,7 @@ impl ClaudeToolData {
             ClaudeToolData::Mermaid { .. } => "Mermaid",
             ClaudeToolData::CodebaseSearchAgent { .. } => "CodebaseSearchAgent",
             ClaudeToolData::UndoEdit { .. } => "UndoEdit",
+            ClaudeToolData::AskUserQuestion { .. } => "AskUserQuestion",
             ClaudeToolData::Unknown { data } => data
                 .get("name")
                 .and_then(|v| v.as_str())

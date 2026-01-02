@@ -32,6 +32,7 @@ use services::services::{
     queued_message::QueuedMessageService,
     repo::RepoService,
     share::SharePublisher,
+    user_questions::UserQuestions,
     worktree_manager::WorktreeError,
 };
 use sqlx::Error as SqlxError;
@@ -106,6 +107,8 @@ pub trait Deployment: Clone + Send + Sync + 'static {
     fn file_search_cache(&self) -> &Arc<FileSearchCache>;
 
     fn approvals(&self) -> &Approvals;
+
+    fn user_questions(&self) -> &UserQuestions;
 
     fn queued_message_service(&self) -> &QueuedMessageService;
 

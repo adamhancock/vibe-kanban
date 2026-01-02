@@ -14,7 +14,7 @@ use workspace_utils::msg_store::MsgStore;
 
 use crate::{
     actions::ExecutorAction,
-    approvals::ExecutorApprovalService,
+    approvals::{ExecutorApprovalService, ExecutorQuestionService},
     command::CommandBuildError,
     env::ExecutionEnv,
     executors::{
@@ -62,6 +62,8 @@ pub enum ExecutorError {
     TomlDeserialize(#[from] toml::de::Error),
     #[error(transparent)]
     ExecutorApprovalError(#[from] crate::approvals::ExecutorApprovalError),
+    #[error(transparent)]
+    ExecutorQuestionError(#[from] crate::approvals::ExecutorQuestionError),
     #[error(transparent)]
     CommandBuild(#[from] CommandBuildError),
     #[error("Executable `{program}` not found in PATH")]
@@ -193,6 +195,7 @@ impl AvailabilityInfo {
 #[enum_dispatch(CodingAgent)]
 pub trait StandardCodingAgentExecutor {
     fn use_approvals(&mut self, _approvals: Arc<dyn ExecutorApprovalService>) {}
+    fn use_questions(&mut self, _questions: Arc<dyn ExecutorQuestionService>) {}
 
     async fn spawn(
         &self,

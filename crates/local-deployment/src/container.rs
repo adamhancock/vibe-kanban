@@ -32,7 +32,7 @@ use executors::{
         coding_agent_follow_up::CodingAgentFollowUpRequest,
         coding_agent_initial::CodingAgentInitialRequest,
     },
-    approvals::{ExecutorApprovalService, NoopExecutorApprovalService},
+    approvals::{ExecutorApprovalService, ExecutorQuestionService, NoopExecutorApprovalService},
     env::ExecutionEnv,
     executors::{BaseCodingAgent, ExecutorExitResult, ExecutorExitSignal, InterruptSender},
     logs::{NormalizedEntryType, utils::patch::extract_normalized_entry_from_patch},
@@ -51,6 +51,7 @@ use services::services::{
     notification::NotificationService,
     queued_message::QueuedMessageService,
     share::SharePublisher,
+    user_questions::{UserQuestions, executor_questions::ExecutorQuestionBridge},
     workspace_manager::{RepoWorkspaceInput, WorkspaceManager},
 };
 use tokio::{sync::RwLock, task::JoinHandle};
@@ -75,6 +76,7 @@ pub struct LocalContainerService {
     image_service: ImageService,
     analytics: Option<AnalyticsContext>,
     approvals: Approvals,
+    user_questions: UserQuestions,
     queued_message_service: QueuedMessageService,
     publisher: Result<SharePublisher, RemoteClientNotConfigured>,
     notification_service: NotificationService,
@@ -99,6 +101,7 @@ impl LocalContainerService {
         let interrupt_senders = Arc::new(RwLock::new(HashMap::new()));
         let notification_service = NotificationService::new(config.clone());
         let devctl2_urls = Arc::new(RwLock::new(HashMap::new()));
+        let user_questions = UserQuestions::new(msg_stores.clone());
 
         let container = LocalContainerService {
             db,
@@ -110,6 +113,7 @@ impl LocalContainerService {
             image_service,
             analytics,
             approvals,
+            user_questions,
             queued_message_service,
             publisher,
             notification_service,
@@ -124,6 +128,10 @@ impl LocalContainerService {
     pub async fn get_child_from_store(&self, id: &Uuid) -> Option<Arc<RwLock<AsyncGroupChild>>> {
         let map = self.child_store.read().await;
         map.get(id).cloned()
+    }
+
+    pub fn user_questions(&self) -> &UserQuestions {
+        &self.user_questions
     }
 
     pub async fn add_child_to_store(&self, id: Uuid, exec: AsyncGroupChild) {
@@ -1052,22 +1060,32 @@ impl ContainerService for LocalContainerService {
             )))?;
         let current_dir = PathBuf::from(container_ref);
 
-        let approvals_service: Arc<dyn ExecutorApprovalService> =
-            match executor_action.base_executor() {
-                Some(
-                    BaseCodingAgent::Codex
-                    | BaseCodingAgent::ClaudeCode
-                    | BaseCodingAgent::Gemini
-                    | BaseCodingAgent::QwenCode
-                    | BaseCodingAgent::Opencode,
-                ) => ExecutorApprovalBridge::new(
+        let (approvals_service, questions_service): (
+            Arc<dyn ExecutorApprovalService>,
+            Option<Arc<dyn ExecutorQuestionService>>,
+        ) = match executor_action.base_executor() {
+            Some(
+                BaseCodingAgent::Codex
+                | BaseCodingAgent::ClaudeCode
+                | BaseCodingAgent::Gemini
+                | BaseCodingAgent::QwenCode
+                | BaseCodingAgent::Opencode,
+            ) => (
+                ExecutorApprovalBridge::new(
                     self.approvals.clone(),
                     self.db.clone(),
                     self.notification_service.clone(),
                     execution_process.id,
                 ),
-                _ => Arc::new(NoopExecutorApprovalService {}),
-            };
+                Some(ExecutorQuestionBridge::new(
+                    self.user_questions.clone(),
+                    self.db.clone(),
+                    self.notification_service.clone(),
+                    execution_process.id,
+                )),
+            ),
+            _ => (Arc::new(NoopExecutorApprovalService {}), None),
+        };
 
         // Build ExecutionEnv with VK_* variables
         let mut env = ExecutionEnv::new();
@@ -1093,7 +1111,7 @@ impl ContainerService for LocalContainerService {
         // Create the child and stream, add to execution tracker with timeout
         let mut spawned = tokio::time::timeout(
             Duration::from_secs(30),
-            executor_action.spawn(&current_dir, approvals_service, &env),
+            executor_action.spawn(&current_dir, approvals_service, questions_service, &env),
         )
         .await
         .map_err(|_| {

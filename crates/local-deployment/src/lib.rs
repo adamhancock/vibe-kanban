@@ -21,6 +21,7 @@ use services::services::{
     remote_client::{RemoteClient, RemoteClientError},
     repo::RepoService,
     share::{ShareConfig, SharePublisher},
+    user_questions::UserQuestions,
 };
 use tokio::sync::RwLock;
 use utils::{
@@ -272,6 +273,10 @@ impl Deployment for LocalDeployment {
 
     fn approvals(&self) -> &Approvals {
         &self.approvals
+    }
+
+    fn user_questions(&self) -> &UserQuestions {
+        self.container.user_questions()
     }
 
     fn queued_message_service(&self) -> &QueuedMessageService {
